@@ -45,6 +45,7 @@ export async function onRequest({ request }: { request: EORequest }) {
   // 如果不知道有什么，可以取消注释以下内容：
   // return new Response(JSON.stringify(headers));
   headers.delete("host");
+  headers.delete("Accept-Encoding");
 
   // 请求体处理，仅在允许的情况下传递 body
   const method = request.method.toUpperCase();
