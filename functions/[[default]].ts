@@ -65,14 +65,43 @@ export async function onRequest({ request }: { request: EORequest }) {
     // 发起请求，返回只读属性的响应
     const response = await fetch(req);
 
+    // 获取请求路径和内容类型，用于判断文件类型
+    const pathname = url.pathname.toLowerCase();
+    const originalContentType = response.headers.get("content-type") || "";
+
+    // 判断是否为CSS或JS文件
+    const isCssFile = originalContentType.includes("text/css") ||
+      pathname.endsWith(".css") ||
+      pathname.includes(".css?") ||
+      pathname.includes("/css/") ||
+      pathname.includes(".min.css");
+
+    const isJsFile = originalContentType.includes("text/javascript") ||
+      originalContentType.includes("application/javascript") ||
+      pathname.endsWith(".js") ||
+      pathname.includes(".js?") ||
+      pathname.includes("/js/") ||
+      pathname.includes(".min.js");
+
     // 创建新的响应头，复制原始响应的头信息
     const responseHeaders = new Headers();
 
-    // 首先设置CORS响应头（强制设置，确保优先级）
+    // 首先设置强制CORS响应头
     responseHeaders.set("Access-Control-Allow-Origin", "*");
     responseHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
     responseHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control, Pragma");
     responseHeaders.set("Access-Control-Expose-Headers", "Content-Length, Content-Type, Cache-Control, ETag, Last-Modified");
+
+    // 为CSS和JS文件设置额外的跨域头
+    if (isCssFile || isJsFile) {
+      responseHeaders.set("Cross-Origin-Resource-Policy", "cross-origin");
+      responseHeaders.set("Cross-Origin-Embedder-Policy", "unsafe-none");
+      responseHeaders.set("Cross-Origin-Opener-Policy", "unsafe-none");
+      // 确保CSS文件有正确的Content-Type
+      if (isCssFile && !originalContentType.includes("text/css")) {
+        responseHeaders.set("Content-Type", "text/css; charset=utf-8");
+      }
+    }
 
     // 然后复制原始响应的头信息（除了可能冲突的安全头）
     for (const [key, value] of response.headers.entries()) {
@@ -80,26 +109,15 @@ export async function onRequest({ request }: { request: EORequest }) {
       // 跳过可能导致CORS问题的头
       if (lowerKey === "x-frame-options" ||
         lowerKey === "content-security-policy" ||
+        lowerKey === "x-content-type-options" ||
         lowerKey.startsWith("access-control-")) {
         continue;
       }
+      // 对于CSS/JS文件，不覆盖我们已经设置的Content-Type
+      if ((isCssFile || isJsFile) && lowerKey === "content-type") {
+        continue;
+      }
       responseHeaders.set(key, value);
-    }
-
-    // 处理内容类型相关的CORS设置
-    const contentType = response.headers.get("content-type") || "";
-    const pathname = url.pathname.toLowerCase();
-
-    // 为CSS文件和JavaScript文件强制设置跨域策略
-    if (contentType.includes("text/css") ||
-      pathname.endsWith(".css") ||
-      contentType.includes("text/javascript") ||
-      contentType.includes("application/javascript") ||
-      pathname.endsWith(".js")) {
-      responseHeaders.set("Cross-Origin-Resource-Policy", "cross-origin");
-      responseHeaders.set("Cross-Origin-Embedder-Policy", "unsafe-none");
-      // 强制重新设置CORS头，确保CSS文件可以被跨域访问
-      responseHeaders.set("Access-Control-Allow-Origin", "*");
     }
 
     // 创建新响应
