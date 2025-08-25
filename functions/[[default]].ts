@@ -38,7 +38,7 @@ export async function onRequestOptions() {
 export async function onRequest({ request }: { request: EORequest }) {
   // 处理 URL
   const url = new URL(request.url);
-  url.hostname = "httpbin.org"; // 此处替换为要反代的域名
+  url.hostname = "wallhaven.cc"; // 此处替换为要反代的域名
 
   // 请求头处理，去除可能导致错误的 headers
   const headers = new Headers(request.headers);
