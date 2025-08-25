@@ -28,8 +28,10 @@ export async function onRequestOptions() {
     status: 200,
     headers: {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control, Pragma",
+      "Access-Control-Max-Age": "86400", // 24小时预检缓存
+      "Vary": "Origin",
     },
   });
 }
@@ -63,15 +65,31 @@ export async function onRequest({ request }: { request: EORequest }) {
     // 发起请求，返回只读属性的响应
     const response = await fetch(req);
 
-    // 拷贝响应，方便后续修改
+    // 创建新的响应头，复制原始响应的头信息
+    const responseHeaders = new Headers(response.headers);
+
+    // 设置CORS响应头
+    responseHeaders.set("Access-Control-Allow-Origin", "*");
+    responseHeaders.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD");
+    responseHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control, Pragma");
+    responseHeaders.set("Access-Control-Expose-Headers", "Content-Length, Content-Type, Cache-Control, ETag, Last-Modified");
+
+    // 处理内容类型相关的CORS设置
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("text/css") || contentType.includes("text/javascript") || contentType.includes("application/javascript")) {
+      responseHeaders.set("Cross-Origin-Resource-Policy", "cross-origin");
+    }
+
+    // 移除可能导致CORS问题的头
+    responseHeaders.delete("x-frame-options");
+    responseHeaders.delete("content-security-policy");
+
+    // 创建新响应
     const newResponse = new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
-      headers: response.headers,
+      headers: responseHeaders,
     });
-
-    // 处理响应头
-    newResponse.headers.set("Access-Control-Allow-Origin", "*");
 
     // 返回响应
     return newResponse;
@@ -84,6 +102,8 @@ export async function onRequest({ request }: { request: EORequest }) {
         headers: {
           "content-type": "application/json",
           "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, HEAD",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept, Origin, User-Agent, Cache-Control, Pragma",
         },
       }
     );
